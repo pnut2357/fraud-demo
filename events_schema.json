@@ -1,0 +1,40 @@
+{
+  "transactions.raw": {
+    "type": "object",
+    "required": ["txn_id","user_id","card_id","amount","merchant","device_id","ip","ts"],
+    "properties": {
+      "txn_id": {"type":"string"},
+      "user_id": {"type":"string"},
+      "card_id": {"type":"string"},
+      "amount": {"type":"number"},
+      "merchant": {"type":"string"},
+      "device_id": {"type":"string"},
+      "ip": {"type":"string"},
+      "ts": {"type":"string"}
+    }
+  },
+  "fraud.scores": {
+    "type": "object",
+    "required": ["txn_id","features","score","top_signals"],
+    "properties": {
+      "txn_id": {"type":"string"},
+      "features": {"type":"object","additionalProperties":{"type":["number","integer"]}},
+      "score": {"type":"number","minimum":0,"maximum":1},
+      "top_signals": {
+        "type":"array",
+        "items":{"type":"object","properties":{"name":{"type":"string"},"value":{"type":["number","integer"]}}}
+      }
+    }
+  },
+  "alerts.high_risk": {
+    "type": "object",
+    "required": ["txn_id","score","reasons","threshold","ts"],
+    "properties": {
+      "txn_id": {"type":"string"},
+      "score": {"type":"number","minimum":0,"maximum":1},
+      "reasons": {"type":"array","items":{"type":"string"}},
+      "threshold": {"type":"number","minimum":0,"maximum":1},
+      "ts": {"type":"string"}
+    }
+  }
+}
