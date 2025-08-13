@@ -1,0 +1,8 @@
+{
+  "thresholds": { "tau": 0.75, "tau_high": 0.9 },
+  "policy": [
+    { "name": "allow", "condition": "score < tau AND fired_rules == []" },
+    { "name": "step_up", "condition": "tau <= score < tau_high OR len(fired_rules) in {1,2}" },
+    { "name": "block", "condition": "score >= tau_high OR any(high_severity_rule in fired_rules)" }
+  ]
+}

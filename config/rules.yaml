@@ -1,0 +1,15 @@
+- id: high_amount_log
+  if: "log_amount >= 10.0"
+  severity: 2
+
+- id: user_velocity_high
+  if: "user_txn_prev10 >= 7"
+  severity: 2
+
+- id: merchant_velocity_high
+  if: "merchant_txn_prev10 >= 8"
+  severity: 1
+
+- id: ip_geo_mismatch
+  if: "ip_country_mismatch == 1"
+  severity: 1

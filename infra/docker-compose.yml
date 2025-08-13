@@ -1,0 +1,64 @@
+version: "3.9"
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672","15672:15672"]
+
+  model_api:
+    build: ./services/model_api
+    environment:
+      - MODEL_PATH=/app/artifacts/model.pkl
+      - MODEL_CONFIG=/app/artifacts/model_config.json
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+      - ./services/model_api:/app
+    ports: ["8001:8001"]
+    depends_on: [rabbitmq]
+
+  rules_api:
+    build: ./services/rules_api
+    environment:
+      - RULES_PATH=/app/config/rules.yaml
+    volumes:
+      - ./config:/app/config:ro
+      - ./services/rules_api:/app
+    ports: ["8002:8002"]
+    depends_on: [rabbitmq]
+
+  stream_worker:
+    build: ./services/stream_worker
+    environment:
+      - MQ_HOST=rabbitmq
+      - MODEL_API=http://model_api:8001
+      - RULES_API=http://rules_api:8002
+      - ALERT_THRESHOLD=0.75
+    volumes:
+      - ./services/stream_worker:/app
+      - ./config:/app/config:ro
+    depends_on: [rabbitmq, model_api, rules_api]
+
+  agent:
+    build: ./services/agent
+    environment:
+      - MQ_HOST=rabbitmq
+      - DB_PATH=/data/fraud.db
+      - POLICY_PATH=/app/config/decision_policy.json
+      - OLLAMA_URL=http://host.docker.internal:11434/api/chat
+      - AGENT_MODEL=llama3.1:8b
+      - FALLBACK_ENABLE=true
+    volumes:
+      - ./services/agent:/app
+      - ./config:/app/config:ro
+      - ./data:/data
+    depends_on: [rabbitmq]
+
+  ui:
+    build: ./services/ui
+    environment:
+      - DB_PATH=/data/fraud.db
+      - PAGE_SIZE=200
+    volumes:
+      - ./services/ui:/app
+      - ./data:/data:ro
+    ports: ["8501:8501"]
+    depends_on: [rabbitmq, agent]
