@@ -1,0 +1,12 @@
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.4.2
+joblib==1.3.2
+pika==1.3.2
+requests==2.32.3
+
+# --- Optional (uncomment if you need them) ---
+# matplotlib==3.8.4          # plotting (e.g., evaluation charts)
+# rich==13.7.1               # nicer CLI logging/formatting
+# jupyterlab==4.2.5          # notebooks for ad-hoc analysis
+# pyarrow==15.0.2            # fast Parquet/Arrow IO (not required)

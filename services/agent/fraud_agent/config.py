@@ -6,3 +6,4 @@ class Settings:
     OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434/api/chat")
     AGENT_MODEL = os.environ.get("AGENT_MODEL", "llama3.1:8b")
     FALLBACK_ENABLE = os.environ.get("FALLBACK_ENABLE", "true").lower() == "true"
+    MIN_SCORE_FOR_LLM = float(os.getenv("MIN_SCORE_FOR_LLM", "0.001"))

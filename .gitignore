@@ -1,6 +1,11 @@
 # Large Data:
 .docker/
 data/raw/PaySim.csv
+.venv/
+__pycache__/
+artifacts/
+data/fraud.db
+*.pyc
 
 airflow_settings.yaml
 astro
