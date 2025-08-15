@@ -1,4 +1,4 @@
-import os, json, requests
+import os, json, requests, datetime
 from .config import Settings
 from .messaging import RabbitClient
 from .features import FeatureComputer
@@ -52,8 +52,7 @@ class StreamWorker:
             if not isinstance(top_factors, list):
                 top_factors = []
             return score, top_factors
-        except Exception as e:
-            print(f"[ERROR] Model API call failed: {type(e).__name__}: {e}", flush=True)
+        except Exception:
             return 0.0, []
 
     def _rules_fired(self, feats: dict):
@@ -68,28 +67,58 @@ class StreamWorker:
         try:
             tx = json.loads(body)
         except Exception:
+            print(f"Error parsing transaction: {e}")
             self.mq.ack(method.delivery_tag)
             return
 
         # Normalize IDs for PaySim-derived events
         user_id = tx.get("user_id") or tx.get("nameOrig")
         merchant = tx.get("merchant") or tx.get("nameDest")
-        ts = tx.get("ts") or tx.get("timestamp")
+        ts = tx.get("timestamp", datetime.datetime.now().isoformat())
+        label = tx.get("isFraud", 0)  # Ground truth if available
+        flagged = tx.get("isFlaggedFraud", 0)  # Dataset's rule flag
 
         # Compute online features
         feats = self.feats.compute(tx)
-        print(f"[DEBUG] Processing transaction {tx.get('txn_id')} with features: {feats}", flush=True)
 
         # Model + explain
-        score, top_factors = self._model_score_and_explain(feats)
-        print(f"[DEBUG] Model score: {score}", flush=True)
+        score = 0.0
+        top_factors = []
+        # score, top_factors = self._model_score_and_explain(feats)
 
         # Rules
         fired = self._rules_fired(feats)
 
+        try:
+            # Increased timeout for reliability
+            response = requests.post(
+                f"{self.s.MODEL_API}/score",
+                json={"features": feats},
+                timeout=5
+            )
+            if response.status_code == 200:
+                result = response.json()
+                score = float(result.get("score", 0.0))
+                top_factors = result.get("top_factors", [])
+                # Log successful scoring
+                print(f"Transaction {tx.get('txn_id')}: score = {score}")
+            else:
+                print(f"API error: {response.status_code}, {response.text}")
+                # Use fallback scoring method here
+                score = 0.01
+                # Consider implementing a fallback scoring method here
+        except requests.exceptions.ConnectionError:
+            print(f"Cannot connect to MODEL_API at {self.s.MODEL_API}. Is it running?")
+        except requests.exceptions.Timeout:
+            print(f"Timeout connecting to MODEL_API. Consider increasing timeout.")
+            score = 0.3  # Default score on timeout
+        except Exception as e:
+            print(f"Unexpected error getting score: {str(e)}")
+            score = 0.3  # Default score on timeout
+        
         # Ground-truth & balances (pass-through if present)
-        label = tx.get("isFraud")
-        flagged = tx.get("isFlaggedFraud")
+        # label = tx.get("isFraud")
+        # flagged = tx.get("isFlaggedFraud")
         balances = {
             "oldbalanceOrg": tx.get("oldbalanceOrg"),
             "newbalanceOrig": tx.get("newbalanceOrig"),

@@ -1,4 +1,4 @@
-version: "3.11"
+
 services:
   rabbitmq:
     image: rabbitmq:3-management
@@ -74,7 +74,7 @@ services:
       - DB_PATH=/data/fraud.db
       - POLICY_PATH=/app/config/decision_policy.json
       - OLLAMA_URL=http://host.lima.internal:11434/api/chat
-      - AGENT_MODEL=llama3.1:8b
+      - AGENT_MODEL=qwen3:8b
       - FALLBACK_ENABLE=true
     volumes:
       - ../services/agent:/app

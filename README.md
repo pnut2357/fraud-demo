@@ -28,16 +28,96 @@ An end-to-end demo that streams transactions, scores them with a model + rules, 
 
 **Ports**
 
-| Service            | Port  | Notes                                                 |
-|--------------------|------:|-------------------------------------------------------|
-| RabbitMQ (AMQP)    |  5672 | broker                                               |
-| RabbitMQ Mgmt UI   | 15672 | http://localhost:15672 (guest/guest)                 |
-| Model API          |  8001 | `/health`, `/features`, `/score`                     |
-| Rules API          |  8002 | `/health`, `/eval`                                   |
-| UI (Streamlit)     |  8501 | dashboard                                            |
-| LLM (Ollama)       | 11434 | if running locally                                   |
+| Service               | Port  | Notes                                                 |
+|-----------------------|------:|-------------------------------------------------------|
+| RabbitMQ (AMQP)       |  5672 | broker                                               |
+| RabbitMQ Mgmt UI      | 15672 | http://localhost:15672 (guest/guest)                 |
+| Model API             |  8001 | `/health`, `/features`, `/score`                     |
+| Rules API             |  8002 | `/health`, `/eval`                                   |
+| UI (Streamlit)        |  8501 | dashboard                                            |
+| LLM (Qwen or Your Model) | 11434 | if running locally                                   |
 
 ---
+
+## Message Contracts (Pub/Sub)
+
+> The message contract **is the product**. All payloads are JSON; recommended AMQP properties:
+> - `content_type="application/json"`, `delivery_mode=2`, `message_id=<txn_id>`,
+> - `timestamp=<epoch>`, `correlation_id=<txn_id>`,
+> - `headers={"schema_version":"1.1","event_type":"<queue_name>"}`  
+> Full JSON Schemas live in `events_schema.json`.
+
+### `transactions.raw` — Ingest event
+**Required:** `txn_id, ts, user_id, merchant, amount`  
+**Optional:** `type, oldbalanceOrg, newbalanceOrig, oldbalanceDest, newbalanceDest, isFraud, isFlaggedFraud, ip, ts_step`
+
+```json
+{
+  "txn_id":"7416a8f8-1880-4d87-b62f-200399ea3259",
+  "ts":"2025-08-15T03:58:00.989Z",
+  "user_id":"C840083671",
+  "merchant":"C38997010",
+  "amount":181.0,
+  "type":"CASH_OUT",
+  "isFraud":1,
+  "isFlaggedFraud":0
+}
+```
+
+### `fraud.scores` — Model/Rules telemetry
+
+**Required:**: `txn_id, user_id, merchant, amount, features, score`
+**Optional:**: `reasons` (rule IDs), `label` (ground truth if known)
+
+```json
+{
+  "txn_id":"b804ab16-e69b-4586-a098-8c97f0724652",
+  "user_id":"C1984094095",
+  "merchant":"C932583850",
+  "amount":311685.89,
+  "features":{"log_amount":12.65,"hour_mod_24":3},
+  "score":0.8834,
+  "reasons":["high_amount_log"],
+  "label":0
+}
+```
+
+### `alerts.high_risk` — Enriched alert to Agent
+
+**Required:** `txn_id, ts, user_id, merchant, amount, features, score, reasons, threshold, baseline_decision`
+**Optional (for explainability/GT):** `model_top_factors[], isFraud, isFlaggedFraud, oldbalanceOrg, newbalanceOrig, oldbalanceDest, newbalanceDest`
+
+```json
+{
+  "txn_id":"932ab294-fe68-472f-847d-cd768ccdbd38",
+  "ts":"2025-08-15T03:58:01.108Z",
+  "user_id":"C1670993182",
+  "merchant":"C1100439041",
+  "amount":215310.30,
+  "features":{"log_amount":12.28},
+  "score":0.8706,
+  "reasons":["high_amount_log"],
+  "threshold":0.75,
+  "baseline_decision":"step_up",
+  "model_top_factors":[{"feature":"log_amount","contribution":1.10}]
+}
+```
+
+### `analyst.recommendations` — Agent output
+
+**Required:** `txn_id, recommendation{decision_recommendation, rationale, key_signals[], actions[]}`
+```json
+{
+  "txn_id":"b804ab16-e69b-4586-a098-8c97f0724652",
+  "recommendation":{
+    "decision_recommendation":"step_up",
+    "rationale":"score=0.88 ≥ τ=0.75; rule=high_amount_log",
+    "key_signals":[{"name":"log_amount","value":12.65}],
+    "actions":["manual_review_queue","verify_out_of_band"]
+  }
+}
+```
+**Evolution rules:** only add optional fields; do not rename/remove required keys. Bump headers.schema_version on changes. Consumers must ignore unknown fields.
 
 ## What the Agent Adds (and why)
 
@@ -51,7 +131,7 @@ Without the agent, the **baseline pipeline** (score + rules) yields a `baseline_
 ---
 
 ## Repository Layout (key paths)
-
+```
 infra/docker-compose.yml # services & wiring
 data/raw/PaySim.csv # source data
 data/transactions_sample.jsonl # streaming input file (generated)
@@ -67,7 +147,7 @@ prepare_paysim.py # CSV → JSONL
 train_artifacts.py # train model → artifacts/
 evaluate_artifacts.py # metrics / thresholds
 publish_sample.py # publish JSONL to RabbitMQ
-
+```
 
 ```
 # 1) Local deps for helper scripts
@@ -109,7 +189,7 @@ open http://localhost:8501
 On your host:
 ```
 ollama serve
-ollama pull llama3.1:8b
+ollama pull qwen3:8b or llama3.1:8b or your own model
 ```
 
 The Agent automatically falls back to policy thresholds if the LLM is unreachable or returns invalid JSON.

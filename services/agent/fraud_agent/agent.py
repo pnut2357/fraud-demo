@@ -11,6 +11,7 @@ from .schemas import AGENT_JSON_SCHEMA
 def connect_with_retry(
     host: str,
     port: int = 5672,
+    vhost: str = "/",
     retries: int = 10,
     delay: float = 2.0,
 ):
@@ -99,7 +100,8 @@ class AgentService:
         # AMQP connection (with retry) — supports MQ_HOST, MQ_PORT, MQ_VHOST, MQ_USER, MQ_PASS
         host = self.s.MQ_HOST
         port = int(os.getenv("MQ_PORT", "5672"))
-        self.conn, self.ch = connect_with_retry(host, port)
+        vhost = os.getenv("MQ_VHOST", "/")
+        self.conn, self.ch = connect_with_retry(host, port, vhost=vhost)
 
         sp_path = os.path.join(os.path.dirname(__file__), "prompts", "system_prompt.txt")
         with open(sp_path, "r", encoding="utf-8") as f:
