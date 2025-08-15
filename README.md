@@ -6,7 +6,7 @@ An end-to-end demo that streams transactions, scores them with a model + rules, 
 
 ## Architecture
 
-![Event-Driven Architecture](figures/fraud_demo.png)
+![Event-Driven Architecture](figures/fraud-demo.png)
 
 
 **Flow summary**
